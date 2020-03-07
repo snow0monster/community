@@ -12,7 +12,9 @@ import study.zhx.community.community.mapper.UserMapper;
 import study.zhx.community.community.model.User;
 import study.zhx.community.community.provider.GithubProvider;
 
+import javax.servlet.http.Cookie;
 import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
 import java.util.UUID;
 
 @Controller
@@ -21,6 +23,10 @@ public class AuthorizeController {
     @Autowired
     private GithubProvider githubProvider;
 
+    @Autowired(required = false)
+    private UserMapper userMapper;
+
+    //通过@Value注解取得配置文件中的变量
     @Value("${github.client.id}")
     private String clientId;
 
@@ -30,13 +36,12 @@ public class AuthorizeController {
     @Value("${github.redirect.uri}")
     private String redirectUri;
 
-    @Autowired
-    private UserMapper userMapper;
 
     @GetMapping("/callback")
     public String callback(@RequestParam(name = "code") String code,
                            @RequestParam(name = "state") String state,
-                           HttpServletRequest request) {
+                           HttpServletRequest request,
+                           HttpServletResponse response) {
         AccessTokenDTO accessTokenDTO = new AccessTokenDTO();
         accessTokenDTO.setClient_id(clientId);
         accessTokenDTO.setClient_secret(clientSecret);
@@ -50,12 +55,14 @@ public class AuthorizeController {
         githubUser=githubProvider.getUser(accessToken);
         if(githubUser!=null){
             User user=new User();
-            user.setToken(UUID.randomUUID().toString());
+            String token = UUID.randomUUID().toString();
+            user.setToken(token);
             user.setName(githubUser.getName());
             user.setAccountId(String.valueOf(githubUser.getId()));
             user.setGmtCreate(System.currentTimeMillis());
             user.setGmtModified(user.getGmtCreate());
             userMapper.insert(user);
+            response.addCookie(new Cookie("token",token));
             System.out.println(githubUser.getName());
             //登录成功，写cookie与session
             request.getSession().setAttribute("user", githubUser);
